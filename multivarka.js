@@ -7,96 +7,99 @@ var server = function (url) {
     if (typeof url != 'string') {
         throw new Error('url должен быть строкой');
     }
-    var query = {
-        url: url,
-        collectionName: null,
-        query: {},
-        collection: function (collectionName) {
-            if (this.collectionName) {
+    var url = url;
+    var collectionName = null;
+    var newProperty;
+    var query = {};
+    var isNot;
+    var updateSet;
+    var multivarka = {
+        collection: function (name) {
+            if (collectionName) {
                 throw new Error('Вы уже задали коллекцию');
             }
-            this.collectionName = collectionName;
+            collectionName = name;
             return this;
         },
         where: function (property) {
-            if (this.newProperty) {
+            if (newProperty) {
                 throw new Error('Свойство уже задано');
             }
-            this.newProperty = property;
+            newProperty = property;
             return this;
         },
         not: function () {
-            this.isNot = true;
+            isNot = true;
             return this;
         },
         equal: function (value) {
-            if (!this.newProperty) {
+            if (!newProperty) {
                 throw new Error('Не задано свойство');
             }
-            if (this.isNot) {
-                this.query = {[this.newProperty]: {$ne: value}};
-                this.newProperty = null;
+            if (isNot) {
+                query = {[newProperty]: {$ne: value}};
+                newProperty = null;
                 return this;
             }
-            this.query[this.newProperty] = value;
-            this.newProperty = null;
+            query[newProperty] = value;
+            newProperty = null;
             return this;
         },
         lessThan: function (value) {
-            addQuery('$lt', value, this);
+            addQuery('$lt', value);
             return this;
         },
         greatThan: function (value) {
-            addQuery('$gt', value, this);
+            addQuery('$gt', value);
             return this;
         },
         include: function (values) {
-            addQuery('$in', values, this);
+            addQuery('$in', values);
             return this;
         },
         find: function (cb) {
-            connectToBase(function (collection, _this) {
-                collection.find(_this.query, function (err, data) {
-                    clearFields(_this);
+            connectToBase(function (collection) {
+                collection.find(query, function (err, data) {
+                    clearFields();
                     if (err) {
                         cb(err);
                         return;
                     }
                     data.toArray(cb);
                 });
-            }, this);
+            });
         },
         remove: function (cb) {
-            connectToBase(function (collection, _this) {
-                collection.remove(_this.query, function (err, data) {
-                    clearFields(_this);
+            connectToBase(function (collection) {
+                collection.remove(query, function (err, data) {
+                    clearFields();
                     if (err) {
                         cb(err);
                         return;
                     }
                     cb(null, data);
                 });
-            }, this);
+            });
         },
         set: function (property, value) {
-            this.updateSet = {$set: {[property]: value}};
+            updateSet = {$set: {[property]: value}};
             return this;
         },
         update: function (cb) {
-            if (!this.updateSet) {
+            if (!updateSet) {
                 cb(new Error('Не было задано обновление'));
                 return;
             }
-            connectToBase(function (collection, _this) {
-                collection.update(_this.query, _this.updateSet, function (err, data) {
-                    clearFields(_this);
+            connectToBase(function (collection) {
+                collection.update(query, updateSet, function (err, data) {
+                    clearFields();
                     if (err) {
                         cb(err);
                         return;
                     }
                     cb(null, data);
                 });
-            }, this);
+            });
         },
         insert(item, cb) {
             if (typeof item != 'object') {
@@ -105,7 +108,7 @@ var server = function (url) {
             }
             connectToBase(function (collection) {
                 collection.insert(item, function (err, data) {
-                    clearFields(_this);
+                    clearFields();
                     if (err) {
                         cb(err);
                         return;
@@ -116,48 +119,45 @@ var server = function (url) {
         }
     };
 
-    return query;
+    return multivarka;
 
-    function clearFields(query) {
-        query.url = null;
-        query.collectionName = null;
-        query.query = null;
-        query.isNot = false;
-        query.updateSet = null;
+    function clearFields() {
+        url = null;
+        collectionName = null;
+        query = null;
+        isNot = false;
+        updateSet = null;
     }
 
-    function connectToBase(cb, _this) {
-        mongoNative.MongoClient.connect(_this.url, function (err, db) {
+    function connectToBase(cb) {
+        mongoNative.MongoClient.connect(url, function (err, db) {
             if (err) {
                 cb(err);
                 return;
             }
-            var collection = db.collection(_this.collectionName);
-            cb(collection, _this);
+            var collection = db.collection(collectionName);
+            cb(collection);
         });
     }
 
-    function addQuery(operator, value, _this) {
-        if (!_this.newProperty) {
+    function addQuery(operator, value) {
+        if (!newProperty) {
             throw new Error('Не задано свойство');
         }
-        if (!_this.query[_this.newProperty]) {
-            _this.query[_this.newProperty] = {};
+        if (!query[newProperty]) {
+            query[newProperty] = {};
         }
-        var query = _this.query[_this.newProperty];
-        if (_this.isNot) {
-            if (!query['$not']) {
-                query['$not'] = {};
+        var propertyQuery = query[newProperty];
+        if (isNot) {
+            if (!propertyQuery['$not']) {
+                propertyQuery['$not'] = {};
             }
-            query['$not'][operator] = value;
-            _this.newProperty = null;
-            _this.isNot = false;
-            return _this;
+            propertyQuery['$not'][operator] = value;
+        } else {
+            propertyQuery[operator] = value;
         }
-        query[operator] = value;
-        _this.newProperty = null;
-        _this.isNot = false;
-        return _this;
+        newProperty = null;
+        isNot = false;
     }
 };
 
