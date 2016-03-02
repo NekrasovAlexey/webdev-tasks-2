@@ -57,6 +57,7 @@ var server = function (url) {
         find: function (cb) {
             connectToBase(function (collection, _this) {
                 collection.find(_this.query, function (err, data) {
+                    clearFields(_this);
                     if (err) {
                         cb(err);
                         return;
@@ -67,20 +68,34 @@ var server = function (url) {
         },
         remove: function (cb) {
             connectToBase(function (collection, _this) {
-                collection.remove(_this.query, cb);
+                collection.remove(_this.query, function (err, data) {
+                    clearFields(_this);
+                    if (err) {
+                        cb(err);
+                        return;
+                    }
+                    cb(null, data);
+                });
             }, this);
         },
         set: function (property, value) {
-            this.set = {$set: {[property]: value}};
+            this.updateSet = {$set: {[property]: value}};
             return this;
         },
         update: function (cb) {
-            if (!this.set) {
+            if (!this.updateSet) {
                 cb(new Error('Не было задано обновление'));
                 return;
             }
             connectToBase(function (collection, _this) {
-                collection.update(_this.query, _this.set, cb);
+                collection.update(_this.query, _this.updateSet, function (err, data) {
+                    clearFields(_this);
+                    if (err) {
+                        cb(err);
+                        return;
+                    }
+                    cb(null, data);
+                });
             }, this);
         },
         insert(item, cb) {
@@ -89,12 +104,27 @@ var server = function (url) {
                 return;
             }
             connectToBase(function (collection) {
-                collection.insert(item, cb);
+                collection.insert(item, function (err, data) {
+                    clearFields(_this);
+                    if (err) {
+                        cb(err);
+                        return;
+                    }
+                    cb(null, data);
+                });
             });
         }
-
     };
+
     return query;
+
+    function clearFields(query) {
+        query.url = null;
+        query.collectionName = null;
+        query.query = null;
+        query.isNot = false;
+        query.updateSet = null;
+    }
 
     function connectToBase(cb, _this) {
         mongoNative.MongoClient.connect(_this.url, function (err, db) {
