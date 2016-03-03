@@ -2,12 +2,11 @@
 
 const mongoNative = require('mongodb');
 
-
-var server = function (url) {
+var Connection = function (url) {
     if (typeof url != 'string') {
         throw new Error('url должен быть строкой');
     }
-    var url = url;
+    //var url = url;
     var collectionName = null;
     var newProperty;
     var query = {};
@@ -22,9 +21,6 @@ var server = function (url) {
             return this;
         },
         where: function (property) {
-            if (newProperty) {
-                throw new Error('Свойство уже задано');
-            }
             newProperty = property;
             return this;
         },
@@ -68,6 +64,7 @@ var server = function (url) {
                     data.toArray(cb);
                 });
             });
+            return this;
         },
         remove: function (cb) {
             connectToBase(function (collection) {
@@ -122,9 +119,7 @@ var server = function (url) {
     return multivarka;
 
     function clearFields() {
-        url = null;
-        collectionName = null;
-        query = null;
+        query = {};
         isNot = false;
         updateSet = null;
     }
@@ -161,4 +156,6 @@ var server = function (url) {
     }
 };
 
-module.exports.server = server;
+module.exports.server = function (url) {
+    return new Connection(url);
+};
