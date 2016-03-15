@@ -1,25 +1,25 @@
 'use strict';
 
-const mongoNative = require('mongodb');
+const mongoMethods = require('./mongoMethods');
 
-var Connection = function (url) {
-    if (typeof url != 'string') {
+let Connection = function (url) {
+    if (typeof url !== 'string') {
         throw new Error('url должен быть строкой');
     }
-    //var url = url;
-    var collectionName = null;
-    var newProperty;
-    var query = {};
-    var isNot;
-    var updateSet;
-    var multivarka = {
+    let collection = null;
+    let newProperty;
+    let query = {};
+    let isNot;
+    let updateSet;
+
+    let connection = {
         collection: function (name) {
-            if (collectionName) {
-                throw new Error('Вы уже задали коллекцию');
-            }
-            collectionName = name;
-            return this;
-        },
+            collection = name;
+            return multivarka;
+        }
+    };
+
+    let multivarka = {
         where: function (property) {
             newProperty = property;
             return this;
@@ -35,6 +35,7 @@ var Connection = function (url) {
             if (isNot) {
                 query = {[newProperty]: {$ne: value}};
                 newProperty = null;
+                isNot = false;
                 return this;
             }
             query[newProperty] = value;
@@ -53,96 +54,53 @@ var Connection = function (url) {
             addQuery('$in', values);
             return this;
         },
-        find: function (cb) {
-            connectToBase(function (collection) {
-                collection.find(query, function (err, data) {
-                    clearFields();
-                    if (err) {
-                        cb(err);
-                        return;
-                    }
-                    data.toArray(cb);
-                });
-            });
-            return this;
+        find: cb => {
+            mongoMethods.find(url, collection, query, cb);
+            resetQuery();
+            return connection;
         },
-        remove: function (cb) {
-            connectToBase(function (collection) {
-                collection.remove(query, function (err, data) {
-                    clearFields();
-                    if (err) {
-                        cb(err);
-                        return;
-                    }
-                    cb(null, data);
-                });
-            });
+        remove: cb => {
+            mongoMethods.remove(url, collection, query, cb);
+            resetQuery();
+            return connection;
         },
         set: function (property, value) {
-            updateSet = {$set: {[property]: value}};
+            if (!updateSet) {
+                updateSet = {$set: {}};
+            }
+            updateSet['$set'][property] = value;
             return this;
         },
-        update: function (cb) {
+        update: cb => {
             if (!updateSet) {
                 cb(new Error('Не было задано обновление'));
                 return;
             }
-            connectToBase(function (collection) {
-                collection.update(query, updateSet, function (err, data) {
-                    clearFields();
-                    if (err) {
-                        cb(err);
-                        return;
-                    }
-                    cb(null, data);
-                });
-            });
+            mongoMethods.update(url, collection, query, updateSet, cb);
+            resetQuery();
+            return connection;
         },
         insert(item, cb) {
-            if (typeof item != 'object') {
+            if (typeof item !== 'object' && item !== null) {
                 cb(new Error('Вставляемый элемент должен быть объектом'));
                 return;
             }
-            connectToBase(function (collection) {
-                collection.insert(item, function (err, data) {
-                    clearFields();
-                    if (err) {
-                        cb(err);
-                        return;
-                    }
-                    cb(null, data);
-                });
-            });
+            mongoMethods.insert(url, collection, item, cb);
+            resetQuery();
+            return connection;
         }
     };
 
-    return multivarka;
-
-    function clearFields() {
-        query = {};
-        isNot = false;
-        updateSet = null;
-    }
-
-    function connectToBase(cb) {
-        mongoNative.MongoClient.connect(url, function (err, db) {
-            if (err) {
-                cb(err);
-                return;
-            }
-            var collection = db.collection(collectionName);
-            cb(collection);
-        });
-    }
+    return connection;
 
     function addQuery(operator, value) {
         if (!newProperty) {
             throw new Error('Не задано свойство');
         }
-        if (!query[newProperty]) {
+        if (!query[newProperty] || isEqualQuery(query[newProperty])) {
             query[newProperty] = {};
         }
-        var propertyQuery = query[newProperty];
+        let propertyQuery = query[newProperty];
         if (isNot) {
             if (!propertyQuery['$not']) {
                 propertyQuery['$not'] = {};
@@ -153,6 +111,22 @@ var Connection = function (url) {
         }
         newProperty = null;
         isNot = false;
+
+        function isEqualQuery(query) {
+            if (typeof query !== 'object') {
+                return true;
+            }
+            return ['$lt', '$gt', '$in', '$ne'].every(operator => {
+                return Object.keys(query).indexOf(operator) === -1;
+            });
+        }
+    }
+
+    function resetQuery() {
+        collection = null;
+        query = {};
+        isNot = false;
+        updateSet = null;
     }
 };
 

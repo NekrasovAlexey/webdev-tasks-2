@@ -1,7 +1,7 @@
 {
   "private": true,
   "dependencies": {
-    "mongodb": "^2.1.7"
+    "mongodb": "2.1.7"
   },
   "devDependencies": {
     "jscs": "2.2.1"
