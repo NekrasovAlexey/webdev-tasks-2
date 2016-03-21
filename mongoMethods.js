@@ -3,69 +3,76 @@
 const MongoClient = require('mongodb').MongoClient;
 
 class MongoConnection {
-    constructor (url, mongo) {
-        mongo.connect = MongoClient.connect(url);
-        this.find = function (collectionName, query, cb) {
-            mongo.connect
-                .then(db => {
-                    db.collection(collectionName).find(query).toArray()
-                        .then(data => {
-                            cb(null, data);
-                        })
-                        .catch(err => {
-                            cb(err);
-                            db.close();
-                            mongo.connect = null;
-                        });
-                })
-                .catch(cb);
-        };
-        this.remove = (collectionName, query, cb) => {
-            mongo.connect
-                .then(db =>
-                    db.collection(collectionName).remove(query)
-                        .then(data =>
-                            cb(null, data)
-                        )
-                        .catch(err => {
-                            cb(err);
-                            db.close();
-                            mongo.connect = null;
-                        })
-                )
-                .catch(cb);
-        };
-        this.update = (collectionName, query, updateSet, cb) => {
-            mongo.connect
-                .then(db =>
-                    db.collection(collectionName).update(query, updateSet)
-                        .then(data =>
-                            cb(null, data)
-                        )
-                        .catch(err => {
-                            cb(err);
-                            db.close();
-                            mongo.connect = null;
-                        })
-                )
-                .catch(cb);
-        };
-        this.insert = (collectionName, item, cb) => {
-            mongo.connect
-                .then(db =>
-                    db.collection(collectionName).insert(item)
-                        .then(data =>
-                            cb(null, data)
-                        )
-                        .catch(err => {
-                            cb(err);
-                            db.close();
-                            mongo.connect = null;
-                        })
-                )
-                .catch(cb);
-        };
+    constructor (url) {
+        this.url = url;
     }
+
+    _connect () {
+        this.connection = this.connection || MongoClient.connect(this.url);
+        return this.connection;
+    }
+
+    find (collectionName, query, cb) {
+        this._connect()
+            .then(db => {
+                db.collection(collectionName).find(query).toArray()
+                    .then(data => {
+                        cb(null, data);
+                    })
+                    .catch(err => {
+                        cb(err);
+                        db.close();
+                        this.connection = null;
+                    });
+            })
+            .catch(cb);
+    };
+
+    remove (collectionName, query, cb) {
+        this._connect()
+            .then(db =>
+                db.collection(collectionName).deleteMany(query)
+                    .then(data =>
+                        cb(null, data)
+                    )
+                    .catch(err => {
+                        cb(err);
+                        db.close();
+                        this.connection = null;
+                    })
+            )
+            .catch(cb);
+    };
+    update (collectionName, query, updateSet, cb) {
+        this._connect()
+            .then(db =>
+                db.collection(collectionName).updateMany(query, updateSet)
+                    .then(data =>
+                        cb(null, data)
+                    )
+                    .catch(err => {
+                        cb(err);
+                        db.close();
+                        this.connection = null;
+                    })
+            )
+            .catch(cb);
+    };
+    insert (collectionName, item, cb) {
+        this._connect()
+            .then(db =>
+                db.collection(collectionName).insertOne(item)
+                    .then(data =>
+                        cb(null, data)
+                    )
+                    .catch(err => {
+                        cb(err);
+                        db.close();
+                        this.connection = null;
+                    })
+            )
+            .catch(cb);
+    };
 }
 
 exports.MongoConnection = MongoConnection;

@@ -12,7 +12,7 @@ class Connection {
         let query = {};
         let isNot;
         let updateSet;
-        let mongo = {};
+        let mongo;
 
         let connection = {
             collection: function (name) {
@@ -45,25 +45,25 @@ class Connection {
                 return this;
             },
             lessThan: function (value) {
-                addQuery('$lt', value);
+                this._addQuery('$lt', value);
                 return this;
             },
             greatThan: function (value) {
-                addQuery('$gt', value);
+                this._addQuery('$gt', value);
                 return this;
             },
             include: function (values) {
-                addQuery('$in', values);
+                this._addQuery('$in', values);
                 return this;
             },
-            find: cb => {
-                connectToMongo(() => mongo.methods.find(collection, query, cb));
-                resetQuery();
+            find: function (cb) {
+                this._connectToMongo(() => mongo.find(collection, query, cb));
+                this._resetQuery();
                 return connection;
             },
-            remove: cb => {
-                connectToMongo(() => mongo.methods.remove(collection, query, cb));
-                resetQuery();
+            remove: function (cb) {
+                this._connectToMongo(() => mongo.remove(collection, query, cb));
+                this._resetQuery();
                 return connection;
             },
             set: function (property, value) {
@@ -73,71 +73,65 @@ class Connection {
                 updateSet['$set'][property] = value;
                 return this;
             },
-            update: cb => {
+            update: function (cb) {
                 if (!updateSet) {
                     cb(new Error('Не было задано обновление'));
                     return;
                 }
-                connectToMongo(() => mongo.methods.update(collection, query, updateSet, cb));
-                resetQuery();
+                this._connectToMongo(() => mongo.update(collection, query, updateSet, cb));
+                this._resetQuery();
                 return connection;
             },
-            insert(item, cb) {
+            insert: function (item, cb) {
                 if (typeof item !== 'object' && item !== null) {
                     cb(new Error('Вставляемый элемент должен быть объектом'));
                     return;
                 }
-                connectToMongo(() => mongo.methods.insert(collection, item, cb));
-                resetQuery();
+                this._connectToMongo(() => mongo.insert(collection, item, cb));
+                this._resetQuery();
                 return connection;
+            },
+            _addQuery(operator, value) {
+                if (!newProperty) {
+                    throw new Error('Не задано свойство');
+                }
+                if (!query[newProperty] || isEqualQuery(query[newProperty])) {
+                    query[newProperty] = {};
+                }
+                let propertyQuery = query[newProperty];
+                if (isNot) {
+                    if (!propertyQuery['$not']) {
+                        propertyQuery['$not'] = {};
+                    }
+                    propertyQuery['$not'][operator] = value;
+                } else {
+                    propertyQuery[operator] = value;
+                }
+                newProperty = null;
+                isNot = false;
+
+                function isEqualQuery(query) {
+                    if (typeof query !== 'object') {
+                        return true;
+                    }
+                    return ['$lt', '$gt', '$in', '$ne'].every(operator => {
+                        return Object.keys(query).indexOf(operator) === -1;
+                    });
+                }
+            },
+            _resetQuery() {
+                collection = null;
+                query = {};
+                isNot = false;
+                updateSet = null;
+            },
+            _connectToMongo(cb) {
+                mongo = mongo || new mongoMethods.MongoConnection(url);
+                cb();
             }
         };
 
         return connection;
-
-        function addQuery(operator, value) {
-            if (!newProperty) {
-                throw new Error('Не задано свойство');
-            }
-            if (!query[newProperty] || isEqualQuery(query[newProperty])) {
-                query[newProperty] = {};
-            }
-            let propertyQuery = query[newProperty];
-            if (isNot) {
-                if (!propertyQuery['$not']) {
-                    propertyQuery['$not'] = {};
-                }
-                propertyQuery['$not'][operator] = value;
-            } else {
-                propertyQuery[operator] = value;
-            }
-            newProperty = null;
-            isNot = false;
-
-            function isEqualQuery(query) {
-                if (typeof query !== 'object') {
-                    return true;
-                }
-                return ['$lt', '$gt', '$in', '$ne'].every(operator => {
-                    return Object.keys(query).indexOf(operator) === -1;
-                });
-            }
-        }
-
-        function resetQuery() {
-            collection = null;
-            query = {};
-            isNot = false;
-            updateSet = null;
-        }
-
-        function connectToMongo(cb) {
-            if (!mongo.connect) {
-                mongo.methods = new mongoMethods.MongoConnection(url, mongo);
-            }
-            cb();
-
-        }
     }
 }
 
